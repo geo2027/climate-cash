@@ -72,6 +72,7 @@ td:last-child,th:last-child{text-align:right}
 .tag{font-size:11px;border-radius:8px;background:var(--soft);padding:3px 7px;white-space:nowrap}
 .tag.warn{background:#fff1d1;color:#8a5a00}.tag.ok{background:#dcf5e3;color:#0a6a43}
 dialog{border:0;border-radius:20px;padding:0;max-width:560px;width:calc(100% - 26px);box-shadow:0 20px 100px #123b3b66;background:var(--card);color:var(--ink)}
+#dialogMessage{white-space:pre-line}
 dialog::backdrop{background:#102f2b88;backdrop-filter:blur(3px)}
 .dialogbody{padding:24px}
 .badge{display:inline-block;min-width:20px;padding:1px 7px;margin-left:6px;border-radius:99px;background:#e5384f;color:#fff;font-size:12px;font-weight:700;text-align:center;animation:pls 1.2s infinite}@keyframes pls{50%{transform:scale(1.18)}}
@@ -263,6 +264,12 @@ body.locked header,body.locked main,body.locked .ticker,body.locked footer,body.
   <div class="two">
     <div class="card"><h3>บันทึกความเคลื่อนไหว</h3><div class="tablewrap"><table><thead><tr><th>วันเวลา</th><th>รายการ</th><th>CC</th></tr></thead><tbody id="walletHistory"></tbody></table></div></div>
     <div class="stack">
+      <div class="card" id="xCard"><h3>💱 แลก CC เป็นธนบัตร (CB)</h3>
+        <p class="muted">อัตรา 1 CC = <b class="rateTxt">10</b> CB · <b class="negative">แลกแล้วมีผลทันที แลกกลับเป็น CC ไม่ได้ และกลับรายการไม่ได้</b></p>
+        <div class="row" style="gap:8px;align-items:flex-end"><div style="flex:1"><label>จำนวน CC ที่ต้องการแลก</label><input id="xAmount" type="number" min="1" step="1" inputmode="numeric" placeholder="เช่น 20"></div><button type="button" id="xAll" class="smallbtn outline" style="height:42px">ทั้งหมด</button></div>
+        <div id="xPreview" class="muted" style="margin:10px 0"></div>
+        <button type="button" id="xBtn" class="primary" style="width:100%">แลกเลย</button>
+      </div>
       <div class="card"><h3>🎒 สิทธิ์ที่ถือครอง</h3><div id="walletInv"></div></div>
       <div class="card"><h3>แลกอภิสิทธิ์</h3><p class="muted">ระบบจะถามยืนยันก่อนหักทุกครั้ง</p><div id="walletShop" class="stack"></div></div>
     </div>
@@ -272,8 +279,9 @@ body.locked header,body.locked main,body.locked .ticker,body.locked footer,body.
 <!-- ตลาด -->
 <section id="market" class="section">
   <div class="titleline"><h2>🛒 ตลาดอภิสิทธิ์ · Resilience Market</h2><span class="pill">CC → POWER</span></div>
+  <div class="card" id="marketBar" style="margin-bottom:14px"></div>
   <div class="catalog" id="catalog"></div>
-  <div class="card" style="margin-top:16px"><h3>อัตราแลกธนบัตรจำลอง</h3><p>1 CC = <b id="rateLabel">10</b> CB · ธนบัตรจำลองใช้ในห้องประมูลตามที่ผู้จัดกำหนด</p><p class="hint">ไม่ใช่เงินจริง · อัตราปรับได้ที่ระบบหลังบ้าน</p></div>
+  <div class="card" style="margin-top:16px"><h3>อัตราแลกธนบัตรจำลอง</h3><p>1 CC = <b id="rateLabel">10</b> CB · ธนบัตรจำลองใช้ในห้องประมูลตามที่ผู้จัดกำหนด</p><p><b>แลกแล้วแลกเลย แลกกลับเป็น CC ไม่ได้</b> · ทีมกดแลกเองได้ที่หน้า "บัญชี Climate Cash"</p><p class="hint">ไม่ใช่เงินจริง · อัตราปรับได้ที่ระบบหลังบ้าน</p></div>
 </section>
 
 <!-- ประมูล -->
@@ -583,7 +591,7 @@ function render(){
   renderChart();
   $('walletTeam').classList.toggle('hidden',!admin);
   $('walletTeam').innerHTML=db.teams.map(t=>`<option value="${t.id}" ${selectedTeam===t.id?'selected':''}>${safe(t.emoji)} ${safe(t.name)}</option>`).join('');
-  $('catalog').innerHTML=db.perks.map(p=>`<div class="card"><div class="ico">${safe(p.ico)}</div><div class="row" style="align-items:flex-start;margin-top:6px"><b>${safe(p.name)}</b><span class="price">${money(p.cost)} CC</span></div><p class="muted">${safe(p.desc)}</p></div>`).join('');
+  renderMarket();
   $('rateLabel').textContent=db.rate;
   renderWallet();renderAuction();renderTV();
   if(admin)renderAdmin();
@@ -608,7 +616,24 @@ function renderChart(){
   document.querySelectorAll('[data-leg]').forEach(b=>b.onclick=()=>{const id=+b.dataset.leg;hidden.has(id)?hidden.delete(id):hidden.add(id);renderChart()});
 }
 
+function renderMarket(){
+  const id=admin?selectedTeam:cur.id,t=tm(id),b=bal(id);
+  const sel=admin?`<select id="marketTeam" style="width:auto;min-width:180px">${db.teams.map(x=>`<option value="${x.id}" ${x.id===id?'selected':''}>${safe(x.emoji)} ${safe(x.name)}</option>`).join('')}</select>`:'';
+  $('marketBar').innerHTML=`<div class="row" style="flex-wrap:wrap"><div><div class="muted">${admin?'แลกให้ทีม':'ทีมของคุณ'}</div><b style="font-size:18px">${safe(t.emoji)} ${safe(t.name)}</b></div>${sel}<div class="right"><div class="muted">CC คงเหลือ</div><div class="stat" style="font-size:28px">${money(b)} CC</div></div></div>`;
+  const mt=$('marketTeam');if(mt)mt.onchange=e=>{selectedTeam=+e.target.value;render()};
+  const own=pid=>db.transactions.filter(x=>x.team===id&&x.kind==='perk'&&x.perkId===pid&&isEff(x)).length;
+  $('catalog').innerHTML=db.perks.map(p=>{const n=own(p.id);return`<div class="card"><div class="ico">${safe(p.ico)}</div><div class="row" style="align-items:flex-start;margin-top:6px"><b>${safe(p.name)}</b><span class="price">${money(p.cost)} CC</span></div><p class="muted">${safe(p.desc)}</p><div class="row" style="margin-top:10px"><span class="hint">${n?'ถืออยู่ '+n+' สิทธิ์':''}</span><button class="smallbtn primary buyM" data-id="${p.id}" ${b<p.cost?'disabled':''}>${b<p.cost?'CC ไม่พอ':'แลกสิทธิ์'}</button></div></div>`}).join('');
+  document.querySelectorAll('.buyM').forEach(btn=>btn.onclick=()=>{
+    const p=db.perks.find(x=>x.id===btn.dataset.id),team=id;if(!p)return;
+    ask('ยืนยันการแลกอภิสิทธิ์',`ใช้ ${p.cost} CC จาก ${tm(team).name} เพื่อซื้อ ${p.name}?\n\nแลกแล้วจะเก็บไว้ในบัญชี ยังไม่ถือว่าใช้ · กด "ใช้สิทธิ์" ที่หน้าบัญชีเมื่อพร้อมรับคำปรึกษา`,()=>{
+      if(bal(team)<p.cost)return notify('CC ไม่เพียงพอ');
+      addTx({team,kind:'perk',amount:-p.cost,description:'ซื้อ '+p.name,perkId:p.id,used:false,requested:false});burst(60);
+      notify(`แลก ${p.name} สำเร็จ 🎉 ดูที่ "บัญชี" → "สิทธิ์ที่ถือครอง"`,6000);
+    });
+  });
+}
 function renderWallet(){
+  updateX();
   const t=tm(selectedTeam),rk=ranking().findIndex(x=>x.t.id===t.id)+1,b=bal(t.id);
   const hero=$('walletHero');hero.style.setProperty('--c',t.color);hero.dataset.emoji=t.emoji;
   hero.innerHTML=`<div class="muted">${safe(t.emoji)} ${safe(t.name)}</div><div class="stat">${money(b)} CC</div><div class="muted">ธนบัตรจำลองคงเหลือ ${money(cbBal(t.id))} CB</div><div class="chips">${t.scarf?`<span>ผ้าผูกคอสี${safe(t.scarf)}</span>`:''}<span>อันดับ #${rk}/${db.teams.length}</span><span>ได้รับสะสม ${money(earnedOf(t.id))} CC</span><span>${db.transactions.filter(x=>x.team===t.id).length} รายการ</span></div>`;
@@ -691,7 +716,7 @@ function renderAdmin(){
 
   $('allTransactions').innerHTML=db.transactions.slice().reverse().map(t=>{
     const note=t.kind==='reversal'?'<span class="tag">กลับรายการ</span>':t.reversedBy?'<span class="tag warn">ถูกกลับรายการแล้ว</span>':'';
-    const btn=isEff(t)?`<button class="smallbtn danger rev" data-id="${t.id}">กลับรายการ</button>`:note;
+    const btn=isEff(t)&&t.kind==='exchange'?'<span class="tag">แลกแล้ว · ถาวร</span>':isEff(t)?`<button class="smallbtn danger rev" data-id="${t.id}">กลับรายการ</button>`:note;
     const val=t.amount||t.cbDelta||0,unit=t.amount?'':' CB';
     return`<tr><td>${safe(tm(t.team).name)}</td><td>${safe(t.description)}<div class="hint">${stamp(t.time)}</div></td><td class="${val>=0?'positive':'negative'}">${val>0?'+':''}${money(val)}${unit}</td><td>${btn}</td></tr>`}).join('');
   document.querySelectorAll('.rev').forEach(b=>b.onclick=()=>ask('กลับรายการธุรกรรม','ระบบจะสร้างรายการตรงข้ามเพื่อหักล้าง และเก็บรายการเดิมไว้เป็นหลักฐาน ดำเนินการต่อหรือไม่?',()=>reverseTx(b.dataset.id)));
@@ -719,7 +744,7 @@ function renderAdmin(){
   $('auditList').innerHTML=db.audit.slice(-150).reverse().map(a=>`<tr><td style="white-space:nowrap">${stamp(a.time)}</td><td style="text-align:left">${safe(a.text)}</td></tr>`).join('')||'<tr><td colspan="2">ยังไม่มีบันทึก</td></tr>';
 }
 function reverseTx(id){
-  const o=db.transactions.find(t=>t.id===id);if(!o||!isEff(o))return;
+  const o=db.transactions.find(t=>t.id===id);if(!o||!isEff(o))return;if(o.kind==='exchange')return notify('การแลก CC เป็น CB เป็นรายการถาวร กลับรายการไม่ได้');
   const nb=bal(o.team)-o.amount,nc=cbBal(o.team)-(o.cbDelta||0);
   if(nb<0||nc<0)return notify('กลับรายการไม่ได้: ยอด CC/CB ของทีมจะติดลบ');
   const r={id:uid(),team:o.team,kind:'reversal',amount:o.amount?-o.amount:0,cbDelta:o.cbDelta?-o.cbDelta:0,description:'กลับรายการ: '+o.description,ref:o.id,time:new Date().toISOString()};
@@ -728,6 +753,30 @@ function reverseTx(id){
 
 document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>showTab(b.dataset.tab));
 $('walletTeam').onchange=e=>{selectedTeam=+e.target.value;renderWallet()};
+/* ---------- แลก CC → CB (ทีมกดเอง, ทันที, ถาวร) ---------- */
+const xTeam=()=>admin?selectedTeam:cur?.id;
+function updateX(){
+  const id=xTeam();if(!id)return;const b=bal(id),a=+$('xAmount').value;
+  document.querySelectorAll('.rateTxt').forEach(e=>e.textContent=db.rate);
+  $('xAmount').max=b;
+  const ok=Number.isInteger(a)&&a>0&&a<=b;
+  $('xPreview').innerHTML=a>0?(ok?`ใช้ <b>${money(a)} CC</b> → ได้ <b class="positive">${money(a*db.rate)} CB</b> · เหลือ ${money(b-a)} CC`:`<span class="negative">${Number.isInteger(a)?'CC ไม่เพียงพอ (มี '+money(b)+' CC)':'ต้องเป็นจำนวนเต็ม'}</span>`):`คุณมี ${money(b)} CC · ${money(cbBal(id))} CB`;
+  $('xBtn').disabled=!ok;
+}
+$('xAmount').oninput=updateX;
+$('xAll').onclick=()=>{$('xAmount').value=bal(xTeam());updateX()};
+$('xBtn').onclick=()=>{
+  const team=xTeam(),a=+$('xAmount').value;
+  if(!team||!Number.isInteger(a)||a<=0)return notify('กรอกจำนวน CC เป็นจำนวนเต็มบวก');
+  if(a>bal(team))return notify('CC ไม่เพียงพอ');
+  const rate=db.rate;
+  ask('ยืนยันการแลก (ถาวร)',`แลก ${money(a)} CC เป็น ${money(a*rate)} CB ให้ ${tm(team).name}\n\n⚠️ แลกแล้วมีผลทันที แลกกลับเป็น CC ไม่ได้ และกลับรายการไม่ได้ ยืนยันหรือไม่?`,()=>{
+    if(a>bal(team))return notify('CC ไม่เพียงพอ');
+    addTx({team,kind:'exchange',amount:-a,cbDelta:a*rate,description:`แลก ${money(a)} CC เป็น ${money(a*rate)} CB (1 CC = ${rate} CB)`,final:true});
+    log(`${tm(team).name} แลก ${a} CC เป็น ${a*rate} CB`);persist();
+    $('xAmount').value='';updateX();burst(60);notify(`แลกสำเร็จ 💱 ได้ ${money(a*rate)} CB แล้ว`,4500);
+  });
+};
 function renderGate(){
   $('gateTeams').innerHTML=db.teams.map(t=>`<button type="button" class="gt" data-gt="${t.id}" style="--c:${safe(t.color)}"><span class="e">${safe(t.emoji)}</span><b>${safe(t.name)}</b><span class="sc">ผ้าสี${safe(t.scarf)}</span></button>`).join('');
   document.querySelectorAll('[data-gt]').forEach(b=>b.onclick=()=>pickGate({role:'team',id:+b.dataset.gt}));
@@ -787,7 +836,7 @@ $('transactionForm').onsubmit=e=>{
   if(!(amount>0&&Number.isInteger(amount)))return notify('จำนวน CC ต้องเป็นจำนวนเต็มบวก');
   if(kind!=='earn'&&bal(team)<amount)return notify('ยอด CC ไม่เพียงพอ');
   const sign=kind==='earn'?'+':'-';
-  ask('ยืนยันธุรกรรม',`${tm(team).name}: ${sign}${amount} CC${kind==='exchange'?` (ได้ ${money(amount*db.rate)} CB)`:''} · ${desc}`,()=>{
+  ask('ยืนยันธุรกรรม',`${tm(team).name}: ${sign}${amount} CC${kind==='exchange'?` (ได้ ${money(amount*db.rate)} CB · ถาวร กลับรายการไม่ได้)`:''} · ${desc}`,()=>{
     if(kind!=='earn'&&bal(team)<amount)return notify('ยอด CC ไม่เพียงพอ');
     addTx({team,kind,amount:kind==='earn'?amount:-amount,description:desc,cbDelta:kind==='exchange'?amount*db.rate:0});
     log(`บันทึก ${kind} ${sign}${amount} CC ให้ ${tm(team).name}: ${desc}`);persist();
