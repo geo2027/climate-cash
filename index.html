@@ -324,10 +324,10 @@ body.locked header,body.locked main,body.locked .ticker,body.locked footer,body.
     <div id="transactions" class="adminsub"><div class="two">
       <div class="card"><h3>เพิ่ม / หัก Climate Cash</h3>
         <form id="transactionForm">
-          <div><label>กลุ่ม</label><select id="txTeam" required></select></div>
+          <div><label>กลุ่ม</label><select id="txTeam" required></select><div id="txBal" class="muted" style="margin-top:8px;padding:9px 11px;background:var(--soft);border-radius:10px"></div></div>
           <div class="formgrid">
-            <div><label>ประเภทรายการ</label><select id="txType"><option value="earn">เพิ่ม CC</option><option value="fine">หัก CC / Climate Watch</option><option value="exchange">แลก CC เป็น CB</option></select></div>
-            <div><label>จำนวน CC</label><input id="txAmount" type="number" min="1" step="1" required></div>
+            <div><label>ประเภทรายการ</label><select id="txType"><option value="earn">เพิ่ม CC</option><option value="fine">หัก CC / Climate Watch</option><option value="exchange">แลก CC เป็น CB</option><option value="cbadd">เพิ่ม CB</option><option value="cbfine">หัก CB</option></select></div>
+            <div><label id="txAmtLbl">จำนวน CC</label><input id="txAmount" type="number" min="1" step="1" required></div>
           </div>
           <div><label>กิจกรรม / เหตุผล</label><select id="txActivity"></select></div>
           <div><label>หมายเหตุ / หลักฐาน</label><textarea id="txNote" placeholder="รายละเอียดการให้คะแนน การหักคะแนน หรือการแลก"></textarea></div>
@@ -414,7 +414,7 @@ body.locked header,body.locked main,body.locked .ticker,body.locked footer,body.
 <!-- TV -->
 <div id="tv">
   <button id="tvexit" class="outline">✕ ออก (Esc)</button>
-  <div class="hd"><div><small style="letter-spacing:2px;color:#bfe9d0">CPW GEO–DRONE CAMP 2027</small><h1>CLIMATE CASH <em>LIVE</em></h1></div><div class="clock" id="tvClock"></div></div>
+  <div class="hd"><div><small style="letter-spacing:2px;color:#bfe9d0">CPW GEO–DRONE CAMP 2027</small><h1>CLIMATE CASH <em>LIVE</em></h1></div><div style="text-align:right"><div class="clock" id="tvClock"></div><div id="tvSync" style="font-size:13px;color:#bfe9d0"></div></div></div>
   <div class="list" id="tvList"></div>
   <div class="ticker"><div id="tvTicker"></div></div>
 </div>
@@ -775,9 +775,10 @@ function renderTV(){
   $('tvList').innerHTML=r.map((x,i)=>`<div class="tvrow" style="--c:${safe(x.t.color)}"><div class="rk">${i===0?'👑':i+1}</div><div class="nm">${safe(x.t.emoji)} ${safe(x.t.name)}</div><div class="v">${money(x.b)}</div><div class="bar"><i style="width:${Math.max(0,x.b)/max*100}%"></i></div></div>`).join('');
 }
 let tvTimer;
-function tvClock(){$('tvClock').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})}
-function tvOpen(){$('tv').classList.add('on');tvClock();tvTimer=setInterval(tvClock,1000);try{document.documentElement.requestFullscreen?.()}catch{}}
-function tvClose(){$('tv').classList.remove('on');clearInterval(tvTimer);if(document.fullscreenElement)document.exitFullscreen?.()}
+function tvClock(){$('tvClock').textContent=new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'});$('tvSync').textContent=cloud.ref?($('cloudChip').textContent||'☁️ กำลังเชื่อมต่อ'):'💾 ข้อมูลในเครื่องนี้ (ไม่ได้ซิงก์ Cloud)';renderTV()}
+let tvPoll;
+function tvOpen(){$('tv').classList.add('on');tvClock();tvTimer=setInterval(tvClock,1000);tvPoll=setInterval(()=>{if(cloud.pull)cloud.pull()},4000);try{document.documentElement.requestFullscreen?.()}catch{}}
+function tvClose(){$('tv').classList.remove('on');clearInterval(tvTimer);clearInterval(tvPoll);if(document.fullscreenElement)document.exitFullscreen?.()}
 $('tvBtn').onclick=tvOpen;$('tvexit').onclick=tvClose;
 addEventListener('keydown',e=>{if(e.key==='Escape'&&$('tv').classList.contains('on'))tvClose()});
 document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&$('tv').classList.contains('on'))tvClose()});
@@ -785,7 +786,7 @@ document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement
 /* ---------- Admin ---------- */
 function renderAdmin(){
   const opts=db.teams.map(t=>`<option value="${t.id}">${safe(t.emoji)} ${safe(t.name)}</option>`).join('');
-  const keep=$('txTeam').value;$('txTeam').innerHTML=opts;if(keep)$('txTeam').value=keep;
+  const keep=$('txTeam').value;$('txTeam').innerHTML=opts;if(keep)$('txTeam').value=keep;updateTxInfo();
   const ka=$('txActivity').value;$('txActivity').innerHTML='<option value="">ระบุเหตุผลเอง</option>'+db.activities.map(a=>`<option value="${a.id}">${safe(a.name)} (${a.type==='fine'?'-':'+'}${a.amount} CC)</option>`).join('');$('txActivity').value=ka;
 
   $('allTransactions').innerHTML=db.transactions.slice().reverse().map(t=>{
@@ -904,10 +905,29 @@ function doLogout(){
 }
 $('logoutBtn').onclick=doLogout;$('logout').onclick=doLogout;
 document.querySelectorAll('[data-sub]').forEach(b=>b.onclick=()=>{document.querySelectorAll('[data-sub]').forEach(x=>x.classList.toggle('active',x===b));document.querySelectorAll('.adminsub').forEach(x=>x.classList.toggle('hidden',x.id!==b.dataset.sub))});
-$('txActivity').onchange=()=>{const a=db.activities.find(x=>x.id===$('txActivity').value);if(a){$('txType').value=a.type;$('txAmount').value=a.amount}};
+function updateTxInfo(){
+  const id=+$('txTeam').value;if(!id)return;
+  const k=$('txType').value,cbk=k==='cbadd'||k==='cbfine',a=+$('txAmount').value||0,cc=bal(id),cb=cbBal(id);
+  $('txAmtLbl').textContent=cbk?'จำนวน CB':'จำนวน CC';
+  const base=cbk?cb:cc,after=base+(k==='earn'||k==='cbadd'?a:-a),u=cbk?'CB':'CC';
+  $('txBal').innerHTML=`${safe(tm(id).emoji)} ${safe(tm(id).name)} คงเหลือ: <b>${money(cc)} CC</b> · <b>${money(cb)} CB</b>`+(a>0?`<br>หลังทำรายการ: <b class="${after<0?'negative':'positive'}">${money(after)} ${u}</b>${after<0?' (ไม่พอ ทำรายการไม่ได้)':''}${k==='exchange'?` · ได้ +${money(a*db.rate)} CB`:''}`:'');
+}
+$('txActivity').onchange=()=>{const a=db.activities.find(x=>x.id===$('txActivity').value);if(a){$('txType').value=a.type;$('txAmount').value=a.amount}updateTxInfo()};
+$('txTeam').onchange=$('txType').onchange=updateTxInfo;$('txAmount').oninput=updateTxInfo;
 $('transactionForm').onsubmit=e=>{
   e.preventDefault();if(!admin)return;
   const team=+$('txTeam').value,kind=$('txType').value,amount=+$('txAmount').value,activity=db.activities.find(x=>x.id===$('txActivity').value);
+  if(kind==='cbadd'||kind==='cbfine'){
+    if(!(amount>0&&Number.isInteger(amount)))return notify('จำนวน CB ต้องเป็นจำนวนเต็มบวก');
+    if(kind==='cbfine'&&cbBal(team)<amount)return notify('ยอด CB ไม่เพียงพอ');
+    const sg=kind==='cbadd'?1:-1,d=$('txNote').value.trim()||(sg>0?'เพิ่มธนบัตร CB โดยผู้ดูแล':'หัก CB โดยผู้ดูแล');
+    return ask('ยืนยันธุรกรรม',`${tm(team).name}: ${sg>0?'+':'-'}${money(amount)} CB (คงเหลือ ${money(cbBal(team)+sg*amount)} CB) · ${d}`,()=>{
+      if(sg<0&&cbBal(team)<amount)return notify('ยอด CB ไม่เพียงพอ');
+      addTx({team,kind:'cbadjust',amount:0,cbDelta:sg*amount,description:d});
+      log(`${sg>0?'เพิ่ม':'หัก'} CB ${amount} ให้ ${tm(team).name}: ${d}`);persist();
+      $('transactionForm').reset();updateTxInfo();notify('บันทึกธุรกรรม CB เรียบร้อย');
+    });
+  }
   let desc=$('txNote').value.trim()||activity?.name||'รายการปรับยอดโดยผู้ดูแล';
   if(kind==='exchange'&&!$('txNote').value.trim())desc='แลกธนบัตรสำหรับประมูล';
   if(!(amount>0&&Number.isInteger(amount)))return notify('จำนวน CC ต้องเป็นจำนวนเต็มบวก');
@@ -917,7 +937,7 @@ $('transactionForm').onsubmit=e=>{
     if(kind!=='earn'&&bal(team)<amount)return notify('ยอด CC ไม่เพียงพอ');
     addTx({team,kind,amount:kind==='earn'?amount:-amount,description:desc,cbDelta:kind==='exchange'?amount*db.rate:0});
     log(`บันทึก ${kind} ${sign}${amount} CC ให้ ${tm(team).name}: ${desc}`);persist();
-    $('transactionForm').reset();notify('บันทึกธุรกรรมเรียบร้อย');if(kind==='earn')burst(90);
+    $('transactionForm').reset();updateTxInfo();notify('บันทึกธุรกรรมเรียบร้อย');if(kind==='earn')burst(90);
   });
 };
 $('teamsForm').onsubmit=e=>{
@@ -1020,14 +1040,18 @@ function cloudInit(){
   if(!FIREBASE_CONFIG||!window.firebase){setCloud('none');return}
   try{
     firebase.initializeApp(FIREBASE_CONFIG);
+    try{firebase.firestore().settings({experimentalAutoDetectLongPolling:true,merge:true})}catch(e){console.warn(e)}
     cloud.ref=firebase.firestore().collection('climate').doc('state');
-    cloud.ref.onSnapshot(s=>{
+    const apply=s=>{
       cloud.ready=true;cloud.exists=s.exists;
       if(s.exists){
+        cloud.v=s.data().v;
         try{db=normalize(JSON.parse(s.data().data));localStorage.setItem(KEY,JSON.stringify(db))}catch(e){console.error(e)}
         setCloud('ok');render();
       }else setCloud('empty');
-    },e=>{console.error(e);setCloud('err')});
+    };
+    cloud.ref.onSnapshot(apply,e=>{console.error(e);setCloud('err')});
+    cloud.pull=()=>cloud.ref.get({source:'server'}).then(s=>{if(!s.exists||s.data().v!==cloud.v)apply(s)}).catch(()=>setCloud('err'));
     $('cloudSeed').onclick=()=>ask('อัปโหลดข้อมูลขึ้น Cloud','ข้อมูลในเครื่องนี้จะทับข้อมูลบน Cloud ทั้งหมด (ทุกเครื่องจะเห็นข้อมูลชุดนี้) ยืนยันหรือไม่?',async()=>{await cloudPush(true);if(cloud.state!=='err'){setCloud('ok');notify('อัปโหลดขึ้น Cloud แล้ว ☁️')}});
   }catch(e){console.error(e);setCloud('err')}
 }
