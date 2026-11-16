@@ -513,6 +513,7 @@ admin=cur?.role==='admin';if(cur&&!admin)selectedTeam=cur.id;
 /* ---------- ตัวช่วยคำนวณ ---------- */
 const tm=id=>db.teams.find(x=>x.id===Number(id))||{id,name:'(ไม่พบทีม)',emoji:'❔',color:'#888'};
 const isEff=t=>t.kind!=='reversal'&&!t.reversedBy;
+const hasPerk=(team,pid)=>db.transactions.some(x=>x.team===Number(team)&&x.kind==='perk'&&x.perkId===pid&&isEff(x));
 const bal=id=>db.transactions.reduce((s,t)=>t.team===Number(id)?s+t.amount:s,0);
 const cbBal=id=>db.transactions.reduce((s,t)=>t.team===Number(id)?s+(t.cbDelta||0):s,0);
 const earnedOf=id=>db.transactions.filter(t=>t.team===Number(id)&&isEff(t)&&t.kind==='earn').reduce((s,t)=>s+t.amount,0);
@@ -641,11 +642,11 @@ function renderMarket(){
   $('marketBar').innerHTML=`<div class="row" style="flex-wrap:wrap"><div><div class="muted">${admin?'แลกให้ทีม':'ทีมของคุณ'}</div><b style="font-size:18px">${safe(t.emoji)} ${safe(t.name)}</b></div>${sel}<div class="right"><div class="muted">CC คงเหลือ</div><div class="stat" style="font-size:28px">${money(b)} CC</div></div></div>`;
   const mt=$('marketTeam');if(mt)mt.onchange=e=>{selectedTeam=+e.target.value;render()};
   const own=pid=>db.transactions.filter(x=>x.team===id&&x.kind==='perk'&&x.perkId===pid&&isEff(x)).length;
-  $('catalog').innerHTML=db.perks.map(p=>{const n=own(p.id);return`<div class="card"><div class="ico">${safe(p.ico)}</div><div class="row" style="align-items:flex-start;margin-top:6px"><b>${safe(p.name)}</b><span class="price">${money(p.cost)} CC</span></div><p class="muted">${safe(p.desc)}</p><div class="row" style="margin-top:10px"><span class="hint">${n?'ถืออยู่ '+n+' สิทธิ์':''}</span><button class="smallbtn primary buyM" data-id="${p.id}" ${b<p.cost?'disabled':''}>${b<p.cost?'CC ไม่พอ':'แลกสิทธิ์'}</button></div></div>`}).join('');
+  $('catalog').innerHTML=db.perks.map(p=>{const n=own(p.id);return`<div class="card"><div class="ico">${safe(p.ico)}</div><div class="row" style="align-items:flex-start;margin-top:6px"><b>${safe(p.name)}</b><span class="price">${money(p.cost)} CC</span></div><p class="muted">${safe(p.desc)}</p><div class="row" style="margin-top:10px"><span class="hint">${n?'ทีมนี้แลกไปแล้ว (แลกได้ครั้งเดียว)':'แลกได้ 1 ครั้ง/ทีม'}</span><button class="smallbtn primary buyM" data-id="${p.id}" ${n||b<p.cost?'disabled':''}>${n?'แลกแล้ว ✔':b<p.cost?'CC ไม่พอ':'แลกสิทธิ์'}</button></div></div>`}).join('');
   document.querySelectorAll('.buyM').forEach(btn=>btn.onclick=()=>{
     const p=db.perks.find(x=>x.id===btn.dataset.id),team=id;if(!p)return;
     ask('ยืนยันการแลกอภิสิทธิ์',`ใช้ ${p.cost} CC จาก ${tm(team).name} เพื่อซื้อ ${p.name}?\n\nแลกแล้วจะเก็บไว้ในบัญชี ยังไม่ถือว่าใช้ · กด "ใช้สิทธิ์" ที่หน้าบัญชีเมื่อพร้อมรับคำปรึกษา`,()=>{
-      if(bal(team)<p.cost)return notify('CC ไม่เพียงพอ');
+      if(hasPerk(team,p.id))return notify('ทีมนี้แลกสิทธิ์นี้ไปแล้ว (แลกได้ครั้งเดียว)');if(bal(team)<p.cost)return notify('CC ไม่เพียงพอ');
       showSlip(addTx({team,kind:'perk',amount:-p.cost,description:'ซื้อ '+p.name,perkId:p.id,used:false,requested:false}));burst(60);
       
     });
@@ -661,7 +662,8 @@ function renderWallet(){
   const inv=db.transactions.filter(x=>x.team===t.id&&x.kind==='perk'&&isEff(x));
   const mine=!admin&&cur&&cur.id===t.id;
   const stTag={ready:'<span class="tag ok">พร้อมใช้</span>',requested:'<span class="tag warn">รอผู้ดูแลให้คำปรึกษา</span>',used:'<span class="tag">ใช้แล้ว</span>'};
-  $('walletInv').innerHTML=(inv.length?'<p class="hint" style="margin:0 0 6px">ซื้อแล้วยังไม่ถือว่าใช้ · เมื่อพร้อมรับคำปรึกษา ให้กด "ใช้สิทธิ์" ที่นี่ ผู้ดูแลจะได้รับแจ้งทันที</p>':'')+inv.slice().reverse().map(x=>{const st=permState(x);return`<div class="inv"><span>${safe(x.description.replace(/^ซื้อ /,''))}</span><span style="display:flex;gap:8px;align-items:center">${stTag[st]}${st==='ready'&&mine?`<button class="smallbtn primary useMine" data-id="${x.id}">ใช้สิทธิ์</button>`:''}</span></div>`}).join('')||'<p class="muted">ยังไม่มีสิทธิ์ที่ถือครอง</p>';
+  $('walletInv').innerHTML=(inv.length?'<p class="hint" style="margin:0 0 6px">ซื้อแล้วยังไม่ถือว่าใช้ · เมื่อพร้อมรับคำปรึกษา ให้กด "ใช้สิทธิ์" ที่นี่ ผู้ดูแลจะได้รับแจ้งทันที</p>':'')+inv.slice().reverse().map(x=>{const st=permState(x);return`<div class="inv"><span>${safe(x.description.replace(/^ซื้อ /,''))}</span><span style="display:flex;gap:8px;align-items:center">${stTag[st]}<button class="smallbtn outline slipBtn" data-id="${x.id}">🧾 ดูบิล</button>${st==='ready'&&mine?`<button class="smallbtn primary useMine" data-id="${x.id}">ใช้สิทธิ์</button>`:''}</span></div>`}).join('')||'<p class="muted">ยังไม่มีสิทธิ์ที่ถือครอง</p>';
+  document.querySelectorAll('#walletInv .slipBtn').forEach(b=>b.onclick=()=>showSlip(db.transactions.find(y=>y.id===b.dataset.id)));
   document.querySelectorAll('.useMine').forEach(btn=>btn.onclick=()=>{
     const x=db.transactions.find(y=>y.id===btn.dataset.id);if(!x)return;
     ask('ยืนยันการใช้สิทธิ์',`ใช้สิทธิ์ "${x.description.replace(/^ซื้อ /,'')}" ตอนนี้เลยหรือไม่? เมื่อกดยืนยัน ผู้ดูแลจะได้รับแจ้งว่าทีมของคุณพร้อมรับคำปรึกษา และยกเลิกเองไม่ได้`,()=>{
@@ -672,11 +674,11 @@ function renderWallet(){
       notify('ส่งคำขอใช้สิทธิ์แล้ว ✅ รอผู้ดูแลมาให้คำปรึกษา',5000);
     });
   });
-  $('walletShop').innerHTML=db.perks.map(p=>`<div class="item row"><div><b>${safe(p.ico)} ${safe(p.name)}</b><div class="muted">${safe(p.desc)}</div></div><div class="right"><b>${p.cost} CC</b><br><button class="smallbtn primary buy" data-id="${p.id}" ${b<p.cost?'disabled':''}>แลกสิทธิ์</button></div></div>`).join('');
+  $('walletShop').innerHTML=db.perks.map(p=>`<div class="item row"><div><b>${safe(p.ico)} ${safe(p.name)}</b><div class="muted">${safe(p.desc)}</div></div><div class="right"><b>${p.cost} CC</b><br><button class="smallbtn primary buy" data-id="${p.id}" ${hasPerk(t.id,p.id)||b<p.cost?'disabled':''}>${hasPerk(t.id,p.id)?'แลกแล้ว ✔':'แลกสิทธิ์'}</button></div></div>`).join('');
   document.querySelectorAll('.buy').forEach(btn=>btn.onclick=()=>{
     const p=db.perks.find(x=>x.id===btn.dataset.id),team=selectedTeam;
     ask('ยืนยันการแลกอภิสิทธิ์',`ใช้ ${p.cost} CC จาก ${tm(team).name} เพื่อซื้อ ${p.name}?`,()=>{
-      if(bal(team)<p.cost)return notify('CC ไม่เพียงพอ');
+      if(hasPerk(team,p.id))return notify('ทีมนี้แลกสิทธิ์นี้ไปแล้ว (แลกได้ครั้งเดียว)');if(bal(team)<p.cost)return notify('CC ไม่เพียงพอ');
       showSlip(addTx({team,kind:'perk',amount:-p.cost,description:'ซื้อ '+p.name,perkId:p.id,used:false,requested:false}));burst(60);
     });
   });
