@@ -141,6 +141,22 @@ footer{text-align:center;color:var(--muted);padding:15px;font-size:12px}
 .bidform{display:grid;grid-template-columns:1.2fr 1fr auto;gap:8px;margin-top:12px;align-items:end}
 
 
+/* auction timer / bid ticker / slip */
+.cdbox{margin-top:10px}.cd,.cd2{font-variant-numeric:tabular-nums}.cd{font-size:36px;font-weight:900;color:var(--deep)}
+.urgent{color:var(--red)!important;animation:pls 1s infinite}
+.cdbar{height:7px;background:var(--soft);border-radius:9px;overflow:hidden;margin-top:6px}.cdbar i{display:block;height:100%;background:linear-gradient(90deg,var(--green),var(--lime));transition:width 1s linear}
+.bidtick{margin-top:12px;background:#052b27;color:#d7f7c0;border-radius:12px;overflow:hidden;white-space:nowrap;font-size:14px;font-weight:650}
+.bidtick div{display:inline-block;padding:10px 0 10px 100%;animation:tick 20s linear infinite}.bidtick b{color:#fff}.bidtick em{font-style:normal;color:var(--lime)}
+#slipDialog{max-width:370px;background:transparent;box-shadow:none;overflow:visible}
+.paper{background:#fffef8;color:#1d2b26;padding:22px 22px 24px;position:relative;box-shadow:0 18px 60px #0007;font-family:ui-monospace,'Courier New','Noto Sans Thai',monospace;animation:slipin .55s cubic-bezier(.2,.9,.3,1.2)}
+.paper:after{content:'';position:absolute;left:0;right:0;bottom:-7px;height:7px;background:conic-gradient(from -45deg at bottom,#0000,#fffef8 1deg 89deg,#0000 90deg) 50%/14px 100%}
+@keyframes slipin{from{opacity:0;transform:translateY(-30px) rotate(-2deg)}}
+.paper h3{text-align:center;margin:0;letter-spacing:2px}.paper .c{text-align:center;font-size:12px;color:#6a7b73}
+.sr{display:flex;justify-content:space-between;gap:12px;font-size:13px;margin:6px 0}.sr b{text-align:right}
+.sd{border-top:2px dashed #b8c4bd;margin:12px 0}.stot{display:flex;justify-content:space-between;font-size:20px;font-weight:900}
+.stamp{display:block;width:max-content;margin:14px auto 0;border:3px solid #0a8a5a;color:#0a8a5a;border-radius:10px;padding:3px 14px;font-weight:900;transform:rotate(-6deg)}
+.slipacts{display:flex;gap:8px;margin-top:22px;justify-content:center}
+#winDialog .dialogbody{text-align:center}.wname{font-size:34px;font-weight:900;margin:6px 0}
 /* gate */
 body.locked header,body.locked main,body.locked .ticker,body.locked footer,body.locked #pendingBar{display:none}
 #gate{position:fixed;inset:0;z-index:500;background:radial-gradient(900px 600px at 85% 0,#0e7a62,transparent 60%),radial-gradient(700px 500px at 0 100%,#0a4c6d,transparent 60%),linear-gradient(160deg,#031b1a,#06302c);display:flex;align-items:center;justify-content:center;padding:20px;overflow:auto;color:#fff}
@@ -362,6 +378,7 @@ body.locked header,body.locked main,body.locked .ticker,body.locked footer,body.
           <div><label>ชื่อสินค้า / วัสดุ</label><input id="aucName" required placeholder="เช่น แผ่นอะคริลิก 30×30"></div>
           <div><label>รายละเอียด</label><textarea id="aucDesc"></textarea></div>
           <div class="formgrid"><div><label>ราคาเริ่มต้น (CB)</label><input id="aucMin" type="number" min="1" value="100" required></div><div><label>รูปแบบ</label><select id="aucSealed"><option value="0">เปิดเผยราคา (ประมูลสด)</option><option value="1">ซ่อนราคา (ยื่นซอง)</option></select></div></div>
+          <div><label>เวลาประมูล (วินาที)</label><input id="aucTime" type="number" min="0" step="1" placeholder="เว้นว่าง / 0 = ไม่จำกัดเวลา"><div class="actions" style="margin-top:6px"><button type="button" class="smallbtn outline" data-sec="30">30 วิ</button><button type="button" class="smallbtn outline" data-sec="60">60 วิ</button><button type="button" class="smallbtn outline" data-sec="120">120 วิ</button><button type="button" class="smallbtn outline" data-sec="300">300 วิ</button></div><p class="hint">หมดเวลาแล้วระบบปิดประมูลเอง และขึ้นชื่อผู้ให้ราคาสูงสุด/คนสุดท้ายเป็นผู้ชนะ</p></div>
           <button class="primary">เปิดประมูล</button>
         </form>
       </div>
@@ -406,6 +423,8 @@ body.locked header,body.locked main,body.locked .ticker,body.locked footer,body.
   <h3 id="dialogTitle"></h3><p id="dialogMessage"></p>
   <div class="actions" style="justify-content:flex-end"><button id="dialogCancel">ยกเลิก</button><button id="dialogConfirm" class="primary">ยืนยัน</button></div>
 </div></dialog>
+<dialog id="slipDialog"><div class="paper" id="slipBody"></div><div class="slipacts"><button id="slipGo" class="outline hidden">ไปที่สิทธิ์ของฉัน</button><button id="slipClose" class="primary">ปิด</button></div></dialog>
+<dialog id="winDialog"><div class="dialogbody"><div id="winBody"></div><div class="actions" style="justify-content:center;margin-top:16px"><button id="winSlip" class="outline hidden">🧾 ดูสลิป</button><button id="winClose" class="primary">ปิด</button></div></div></dialog>
 <div id="notice"></div>
 
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -627,8 +646,8 @@ function renderMarket(){
     const p=db.perks.find(x=>x.id===btn.dataset.id),team=id;if(!p)return;
     ask('ยืนยันการแลกอภิสิทธิ์',`ใช้ ${p.cost} CC จาก ${tm(team).name} เพื่อซื้อ ${p.name}?\n\nแลกแล้วจะเก็บไว้ในบัญชี ยังไม่ถือว่าใช้ · กด "ใช้สิทธิ์" ที่หน้าบัญชีเมื่อพร้อมรับคำปรึกษา`,()=>{
       if(bal(team)<p.cost)return notify('CC ไม่เพียงพอ');
-      addTx({team,kind:'perk',amount:-p.cost,description:'ซื้อ '+p.name,perkId:p.id,used:false,requested:false});burst(60);
-      notify(`แลก ${p.name} สำเร็จ 🎉 ดูที่ "บัญชี" → "สิทธิ์ที่ถือครอง"`,6000);
+      showSlip(addTx({team,kind:'perk',amount:-p.cost,description:'ซื้อ '+p.name,perkId:p.id,used:false,requested:false}));burst(60);
+      
     });
   });
 }
@@ -637,7 +656,8 @@ function renderWallet(){
   const t=tm(selectedTeam),rk=ranking().findIndex(x=>x.t.id===t.id)+1,b=bal(t.id);
   const hero=$('walletHero');hero.style.setProperty('--c',t.color);hero.dataset.emoji=t.emoji;
   hero.innerHTML=`<div class="muted">${safe(t.emoji)} ${safe(t.name)}</div><div class="stat">${money(b)} CC</div><div class="muted">ธนบัตรจำลองคงเหลือ ${money(cbBal(t.id))} CB</div><div class="chips">${t.scarf?`<span>ผ้าผูกคอสี${safe(t.scarf)}</span>`:''}<span>อันดับ #${rk}/${db.teams.length}</span><span>ได้รับสะสม ${money(earnedOf(t.id))} CC</span><span>${db.transactions.filter(x=>x.team===t.id).length} รายการ</span></div>`;
-  $('walletHistory').innerHTML=db.transactions.filter(x=>x.team===t.id).slice().reverse().map(x=>`<tr><td>${stamp(x.time)}</td><td>${safe(x.description)}${x.reversedBy?' <span class="tag warn">ถูกกลับรายการ</span>':''}${x.cbDelta?`<div class="hint">CB ${x.cbDelta>0?'+':''}${money(x.cbDelta)}</div>`:''}</td><td class="${x.amount>=0?'positive':'negative'}">${x.amount>0?'+':''}${money(x.amount)}</td></tr>`).join('')||'<tr><td colspan="3">ยังไม่มีธุรกรรม</td></tr>';
+  $('walletHistory').innerHTML=db.transactions.filter(x=>x.team===t.id).slice().reverse().map(x=>`<tr><td>${stamp(x.time)}</td><td>${safe(x.description)}${['perk','exchange','auction'].includes(x.kind)&&isEff(x)?` <button class="smallbtn outline slipBtn" data-id="${x.id}">🧾 สลิป</button>`:''}${x.reversedBy?' <span class="tag warn">ถูกกลับรายการ</span>':''}${x.cbDelta?`<div class="hint">CB ${x.cbDelta>0?'+':''}${money(x.cbDelta)}</div>`:''}</td><td class="${x.amount>=0?'positive':'negative'}">${x.amount>0?'+':''}${money(x.amount)}</td></tr>`).join('')||'<tr><td colspan="3">ยังไม่มีธุรกรรม</td></tr>';
+  document.querySelectorAll('.slipBtn').forEach(b=>b.onclick=()=>showSlip(db.transactions.find(y=>y.id===b.dataset.id)));
   const inv=db.transactions.filter(x=>x.team===t.id&&x.kind==='perk'&&isEff(x));
   const mine=!admin&&cur&&cur.id===t.id;
   const stTag={ready:'<span class="tag ok">พร้อมใช้</span>',requested:'<span class="tag warn">รอผู้ดูแลให้คำปรึกษา</span>',used:'<span class="tag">ใช้แล้ว</span>'};
@@ -657,42 +677,94 @@ function renderWallet(){
     const p=db.perks.find(x=>x.id===btn.dataset.id),team=selectedTeam;
     ask('ยืนยันการแลกอภิสิทธิ์',`ใช้ ${p.cost} CC จาก ${tm(team).name} เพื่อซื้อ ${p.name}?`,()=>{
       if(bal(team)<p.cost)return notify('CC ไม่เพียงพอ');
-      addTx({team,kind:'perk',amount:-p.cost,description:'ซื้อ '+p.name,perkId:p.id,used:false,requested:false});burst(60);notify('แลกสำเร็จ 🎉 แต่ยังไม่ได้ใช้! เลื่อนขึ้นไปที่ "สิทธิ์ที่ถือครอง" แล้วกด "ใช้สิทธิ์" เมื่อพร้อมรับคำปรึกษา',7000);try{$('walletInv').scrollIntoView({behavior:'smooth',block:'center'})}catch{}
+      showSlip(addTx({team,kind:'perk',amount:-p.cost,description:'ซื้อ '+p.name,perkId:p.id,used:false,requested:false}));burst(60);
     });
   });
 }
 
+/* ---------- สลิป ---------- */
+function balAt(tx){let cc=0,cb=0;for(const t of db.transactions){if(t.team===tx.team){cc+=t.amount;cb+=t.cbDelta||0}if(t.id===tx.id)break}return{cc,cb}}
+function showSlip(t){
+  if(!t)return;const tn=tm(t.team),af=balAt(t),no='CC-'+String(t.id).replace(/[^a-z0-9]/gi,'').slice(-8).toUpperCase();
+  const lb={perk:'ซื้ออภิสิทธิ์',exchange:'แลก CC เป็น CB',auction:'ชนะการประมูล'}[t.kind]||'ธุรกรรม',st={perk:'ซื้อแล้ว',exchange:'แลกสำเร็จ',auction:'ชำระแล้ว'}[t.kind]||'สำเร็จ';
+  const tot=t.amount?money(Math.abs(t.amount))+' CC':money(Math.abs(t.cbDelta||0))+' CB';
+  $('slipBody').innerHTML=`<h3>🌍 CLIMATE CASH</h3><div class="c">ใบเสร็จรับเงิน · RECEIPT</div><div class="sd"></div>
+  <div class="sr"><span>เลขที่</span><b>${no}</b></div><div class="sr"><span>วันเวลา</span><b>${new Date(t.time).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'medium'})}</b></div>
+  <div class="sr"><span>ทีม</span><b>${safe(tn.emoji)} ${safe(tn.name)}</b></div><div class="sr"><span>ประเภท</span><b>${lb}</b></div><div class="sr"><span>รายการ</span><b>${safe(t.description)}</b></div>
+  ${t.kind==='exchange'&&t.cbDelta>0?`<div class="sr"><span>ได้รับ</span><b>+${money(t.cbDelta)} CB</b></div>`:''}
+  <div class="sd"></div><div class="stot"><span>รวม</span><span>${tot}</span></div><div class="sd"></div>
+  <div class="sr"><span>CC คงเหลือ</span><b>${money(af.cc)}</b></div><div class="sr"><span>CB คงเหลือ</span><b>${money(af.cb)}</b></div>
+  <span class="stamp">✔ ${st}</span>${t.kind==='perk'?'<div class="c" style="margin-top:12px">ซื้อแล้วยังไม่ถือว่าใช้ · กด "ใช้สิทธิ์" ที่หน้าบัญชีเมื่อพร้อมรับคำปรึกษา</div>':''}`;
+  $('slipGo').classList.toggle('hidden',t.kind!=='perk');
+  if(!$('slipDialog').open)$('slipDialog').showModal();
+}
+$('slipClose').onclick=()=>$('slipDialog').close();
+$('slipDialog').onclick=e=>{if(e.target===$('slipDialog'))$('slipDialog').close()};
+$('slipGo').onclick=()=>{$('slipDialog').close();showTab('wallet');try{$('walletInv').scrollIntoView({behavior:'smooth',block:'center'})}catch{}};
+$('winClose').onclick=()=>$('winDialog').close();
+$('winSlip').onclick=()=>{const t=db.transactions.find(x=>x.id===$('winSlip').dataset.id);$('winDialog').close();showSlip(t)};
+
 /* ---------- ประมูล ---------- */
 const topBid=a=>a.bids.slice().sort((x,y)=>y.amount-x.amount||new Date(x.time)-new Date(y.time))[0];
+const liveAucs=()=>db.auctions.filter(a=>!a.deleted);
+const seenClosed=new Set(),bidCnt={};
+const leftSec=a=>Math.max(0,Math.ceil((a.endsAt-Date.now())/1000));
+function bidTicker(a){
+  const b=a.bids.slice().reverse();
+  const h=b.length?b.map(x=>`${safe(tm(x.team).emoji)} <b>${safe(tm(x.team).name)}</b>${a.sealed?' ยื่นซองแล้ว 🔒':` ให้ราคา <em>${money(x.amount)} CB</em>`}`).join(' &nbsp;•&nbsp; '):'ยังไม่มีผู้เสนอราคา — เป็นทีมแรกเลย! 🔨';
+  return`<div class="bidtick"><div style="animation-duration:${Math.max(14,b.length*5)}s">${h}</div></div>`;
+}
+function announceWin(a){
+  const sold=a.status==='sold',w=sold?tm(a.winner):null;
+  $('winBody').innerHTML=`<div style="font-size:54px">${sold?'🏁':'🔔'}</div><h3>ประมูลจบแล้ว · ${safe(a.name)}</h3>`+(sold?`<div class="muted">ผู้ชนะการประมูล</div><div class="wname" style="color:${safe(w.color)}">${safe(w.emoji)} ${safe(w.name)}</div><div class="stat">${money(a.price)} CB</div>`:'<p class="muted">ไม่มีผู้ชนะ</p>');
+  $('winSlip').classList.toggle('hidden',!(sold&&(admin||cur.id===a.winner)));$('winSlip').dataset.id='win-'+a.id;
+  if(!$('winDialog').open)$('winDialog').showModal();if(sold)burst(200);
+}
 function renderAuction(){
-  const open=db.auctions.filter(a=>a.status==='open'),done=db.auctions.filter(a=>a.status!=='open').slice().reverse();
+  const all=liveAucs(),open=all.filter(a=>a.status==='open'),done=all.filter(a=>a.status!=='open').slice().reverse(),now=Date.now();
+  const keep={};document.querySelectorAll('#auctionList input[name=amount]').forEach(i=>{if(i.value)keep[i.closest('form').dataset.auc]=i.value});
   const opts=db.teams.map(t=>`<option value="${t.id}">${safe(t.emoji)} ${safe(t.name)} (${money(cbBal(t.id))} CB)</option>`).join('');
   const teamField=admin?`<div><label>เสนอแทนทีม</label><select name="team">${opts}</select></div>`:`<input type="hidden" name="team" value="${cur.id}"><div><label>ทีมของคุณ</label><div class="muted" style="padding:12px 0">${safe(tm(cur.id).emoji)} ${safe(tm(cur.id).name)} · ${money(cbBal(cur.id))} CB</div></div>`;
-  $('auctionList').innerHTML=(open.map(a=>{const tp=topBid(a);return`<div class="card auc"><div class="top"><div><h3 style="margin:0">🔨 ${safe(a.name)}</h3><div class="muted">${safe(a.desc)}</div><div class="chips" style="margin-top:8px"><span style="background:var(--soft);color:var(--ink)">ราคาเริ่ม ${money(a.minBid)} CB</span><span style="background:var(--soft);color:var(--ink)">${a.sealed?'ยื่นซอง (ซ่อนราคา)':'ประมูลสด'}</span><span style="background:var(--soft);color:var(--ink)">${a.bids.length} การเสนอราคา</span></div></div><div class="right"><div class="muted">${a.sealed?'ราคาสูงสุด':'ราคาปัจจุบัน'}</div><div class="big">${a.sealed?'🔒':tp?money(tp.amount):'—'}${!a.sealed&&tp?' CB':''}</div>${!a.sealed&&tp?`<div class="muted">นำโดย ${safe(tm(tp.team).emoji)} ${safe(tm(tp.team).name)}</div>`:''}</div></div>
-    <form class="bidform" data-auc="${a.id}">${teamField}<div><label>เสนอราคา (CB)</label><input name="amount" type="number" min="${a.minBid}" step="1" required></div><button class="primary">ประมูล</button></form></div>`}).join('')||'<div class="card"><p class="muted">ยังไม่มีห้องประมูลที่เปิดอยู่</p></div>')
-  +(done.length?`<div class="card"><h3>ผลการประมูลที่ผ่านมา</h3>${done.map(a=>`<div class="inv"><span>${safe(a.name)}</span><span>${a.status==='sold'?`<span class="tag ok">${safe(tm(a.winner).emoji)} ${safe(tm(a.winner).name)} · ${money(a.price)} CB</span>`:'<span class="tag">ไม่มีผู้ชนะ</span>'}</span></div>`).join('')}</div>`:'');
+  const chip=x=>`<span style="background:var(--soft);color:var(--ink)">${x}</span>`;
+  $('auctionList').innerHTML=(open.map(a=>{const tp=topBid(a),left=a.endsAt?leftSec(a):0,dur=(a.duration||left||1)*1000;return`<div class="card auc"><div class="top"><div><h3 style="margin:0">🔨 ${safe(a.name)}</h3><div class="muted">${safe(a.desc)}</div><div class="chips" style="margin-top:8px">${chip('ราคาเริ่ม '+money(a.minBid)+' CB')}${chip(a.sealed?'ยื่นซอง (ซ่อนราคา)':'ประมูลสด')}${chip(a.bids.length+' การเสนอราคา')}${chip(a.endsAt?'⏱ '+(a.duration||'')+' วินาที':'ไม่จำกัดเวลา')}</div></div><div class="right"><div class="muted">${a.sealed?'ราคาสูงสุด':'ราคาปัจจุบัน'}</div><div class="big">${a.sealed?'🔒':tp?money(tp.amount):'—'}${!a.sealed&&tp?' CB':''}</div>${!a.sealed&&tp?`<div class="muted">นำโดย ${safe(tm(tp.team).emoji)} ${safe(tm(tp.team).name)}</div>`:''}${a.endsAt?`<div class="cdbox"><div class="muted">⏱ เหลือเวลา</div><span class="cd${left<=10?' urgent':''}" data-end="${a.endsAt}">${left}</span> วินาที<div class="cdbar"><i data-bar data-end="${a.endsAt}" data-dur="${dur}" style="width:${Math.min(100,left*1000/dur*100)}%"></i></div></div>`:''}</div></div>
+    ${bidTicker(a)}<form class="bidform" data-auc="${a.id}">${teamField}<div><label>เสนอราคา (CB)</label><input name="amount" type="number" min="${a.minBid}" step="1" required></div><button class="primary">ประมูล</button></form></div>`}).join('')||'<div class="card"><p class="muted">ยังไม่มีห้องประมูลที่เปิดอยู่</p></div>')
+  +(done.length?`<div class="card"><h3>ผลการประมูลที่ผ่านมา</h3>${done.map(a=>`<div class="inv"><span>${safe(a.name)}${a.closedAt?`<div class="hint">${stamp(a.closedAt)}</div>`:''}</span><span>${a.status==='sold'?`<span class="tag ok">🏆 ${safe(tm(a.winner).emoji)} ${safe(tm(a.winner).name)} · ${money(a.price)} CB</span>`:'<span class="tag">ไม่มีผู้ชนะ</span>'}</span></div>`).join('')}</div>`:'');
+  document.querySelectorAll('#auctionList form.bidform').forEach(f=>{if(keep[f.dataset.auc])f.amount.value=keep[f.dataset.auc]});
+  let ann=null;
+  done.forEach(a=>{if(seenClosed.has(a.id))return;seenClosed.add(a.id);if(a.closedAt&&now-a.closedAt<90000&&(a.status==='sold'||!a.cancelled))ann=a});
+  if(ann)announceWin(ann);
+  open.forEach(a=>{const n=a.bids.length;if(a.id in bidCnt&&n>bidCnt[a.id]){const l=a.bids[n-1];notify(a.sealed?`🔒 ${tm(l.team).name} ยื่นซองประมูลแล้ว`:`🔔 ${tm(l.team).emoji} ${tm(l.team).name} ให้ราคา ${money(l.amount)} CB`)}bidCnt[a.id]=n});
 }
+function tickAuctions(){
+  if(!cur)return;const now=Date.now();
+  document.querySelectorAll('.cd,.cd2').forEach(el=>{const x=Math.max(0,Math.ceil((+el.dataset.end-now)/1000));el.textContent=x;el.classList.toggle('urgent',x<=10)});
+  document.querySelectorAll('[data-bar]').forEach(el=>{el.style.width=Math.max(0,Math.min(100,(+el.dataset.end-now)/+el.dataset.dur*100))+'%'});
+  db.auctions.filter(a=>a.status==='open'&&!a.deleted&&a.endsAt&&now>=a.endsAt).forEach(a=>closeAuction(a.id,true));
+}
+setInterval(tickAuctions,1000);
 function bidSubmit(f){
   const a=db.auctions.find(x=>x.id===f.dataset.auc);if(!a||a.status!=='open')return;
+  if(a.endsAt&&Date.now()>=a.endsAt)return notify('หมดเวลาประมูลแล้ว');
   const team=+f.team.value,amount=Number(f.amount.value);
   if(!Number.isInteger(amount)||amount<a.minBid)return notify(`ราคาต้องไม่ต่ำกว่า ${money(a.minBid)} CB`);
   const tp=topBid(a);if(!a.sealed&&tp&&amount<=tp.amount)return notify(`ต้องเสนอสูงกว่า ${money(tp.amount)} CB`);
   if(amount>cbBal(team))return notify('ธนบัตร CB ของทีมไม่เพียงพอ');
   if(!admin&&team!==cur.id)return notify('เสนอราคาได้เฉพาะทีมของคุณ');
-  a.bids.push({team,amount,time:new Date().toISOString()});save();notify(a.sealed?'ส่งซองประมูลแล้ว 🔒':`${tm(team).name} เสนอ ${money(amount)} CB`);
+  a.bids.push({team,amount,time:new Date().toISOString()});f.amount.value='';save();if(a.sealed)notify('ส่งซองประมูลแล้ว 🔒');
 }
 /* ส่งฟอร์มเองด้วยปุ่ม/Enter: ใช้ได้แม้ที่แสดงผลแบบ sandbox ที่บล็อกการ submit ของฟอร์ม */
 $('auctionList').addEventListener('click',e=>{const b=e.target.closest('button'),f=b&&b.closest('form.bidform');if(!f)return;e.preventDefault();if(f.reportValidity())bidSubmit(f)});
 $('auctionList').addEventListener('keydown',e=>{const f=e.target.closest&&e.target.closest('form.bidform');if(f&&e.key==='Enter'&&e.target.tagName==='INPUT'){e.preventDefault();if(f.reportValidity())bidSubmit(f)}});
 $('auctionList').addEventListener('submit',e=>e.preventDefault());
-function closeAuction(id){
+function closeAuction(id,auto){
   const a=db.auctions.find(x=>x.id===id);if(!a||a.status!=='open')return;
   const seen=new Set(),ranked=a.bids.slice().sort((x,y)=>y.amount-x.amount||new Date(x.time)-new Date(y.time)).filter(b=>seen.has(b.team)?false:(seen.add(b.team),true));
-  const win=ranked.find(b=>cbBal(b.team)>=b.amount);
-  if(!win){a.status='void';log(`ปิดประมูล "${a.name}" โดยไม่มีผู้ชนะ`);save();return notify('ปิดประมูล: ไม่มีผู้ชนะที่ยอด CB พอ')}
+  const win=ranked.find(b=>cbBal(b.team)>=b.amount),why=auto?'หมดเวลา · ':'';
+  a.closedAt=Date.now();a.autoClosed=!!auto;
+  if(!win){a.status='void';log(`${why}ปิดประมูล "${a.name}" โดยไม่มีผู้ชนะ`);save();return}
   a.status='sold';a.winner=win.team;a.price=win.amount;
-  db.transactions.push({id:uid(),team:win.team,kind:'auction',amount:0,cbDelta:-win.amount,description:`ชนะประมูล: ${a.name}`,time:new Date().toISOString()});
-  log(`ปิดประมูล "${a.name}" ผู้ชนะ ${tm(win.team).name} ราคา ${win.amount} CB`);save();burst(180);notify(`🏁 ${tm(win.team).name} ชนะประมูลที่ ${money(win.amount)} CB`);
+  if(!db.transactions.some(t=>t.id==='win-'+a.id))db.transactions.push({id:'win-'+a.id,team:win.team,kind:'auction',amount:0,cbDelta:-win.amount,description:`ชนะประมูล: ${a.name}`,time:new Date().toISOString()});
+  log(`${why}ปิดประมูล "${a.name}" ผู้ชนะ ${tm(win.team).name} ราคา ${win.amount} CB`);save();
 }
 
 /* ---------- TV ---------- */
@@ -733,10 +805,13 @@ function renderAdmin(){
   $('redeemList').innerHTML=red.map(t=>{const st=permState(t);return`<div class="inv"><span><b>${safe(tm(t.team).emoji)} ${safe(tm(t.team).name)}</b> · ${safe(t.description.replace(/^ซื้อ /,''))} <span class="hint">${st==='requested'?'ขอเมื่อ '+stamp(t.requestedAt||t.time):'ซื้อเมื่อ '+stamp(t.time)}</span><br>${stLbl[st]}</span><button class="smallbtn ${st==='requested'?'primary':'outline'} useTx" data-id="${t.id}">${st==='used'?'ยกเลิกการใช้':'ทำเครื่องหมายใช้แล้ว'}</button></div>`}).join('')||'<p class="muted">ยังไม่มีการแลกสิทธิ์</p>';
   document.querySelectorAll('.useTx').forEach(b=>b.onclick=()=>{const t=db.transactions.find(x=>x.id===b.dataset.id);if(!t)return;if(t.used){t.used=false}else{t.used=true;t.requested=true;t.requestedAt=t.requestedAt||new Date().toISOString()}log(`${t.used?'ใช้':'ยกเลิกการใช้'}สิทธิ์: ${t.description} (${tm(t.team).name})`);save()});
 
-  const stT={open:'<span class="tag ok">เปิดอยู่</span>',sold:'<span class="tag">ขายแล้ว</span>',void:'<span class="tag warn">ไม่มีผู้ชนะ</span>'};
-  $('adminAuctions').innerHTML=db.auctions.slice().reverse().map(a=>{const tp=topBid(a);return`<div class="item"><div class="row"><b>${safe(a.name)}</b>${stT[a.status]||''}</div><div class="muted">เริ่ม ${money(a.minBid)} CB · ${a.sealed?'ยื่นซอง':'ประมูลสด'} · ${a.bids.length} บิด${tp?` · สูงสุด ${money(tp.amount)} CB (${safe(tm(tp.team).name)})`:''}${a.status==='sold'?` · ผู้ชนะ ${safe(tm(a.winner).name)} ${money(a.price)} CB`:''}</div><div class="actions" style="margin-top:8px">${a.status==='open'?`<button class="smallbtn primary closeAuc" data-id="${a.id}">ปิดประมูลและตัดสิน</button><button class="smallbtn danger cancelAuc" data-id="${a.id}">ยกเลิก</button>`:''}</div></div>`}).join('')||'<p class="muted">ยังไม่มีรายการ</p>';
+  const stT={open:'<span class="tag ok">เปิดอยู่</span>',sold:'<span class="tag">ขายแล้ว</span>',void:'<span class="tag warn">ไม่มีผู้ชนะ</span>'},fin=liveAucs().filter(a=>a.status!=='open');
+  $('adminAuctions').innerHTML=(fin.length?`<div class="actions" style="margin-bottom:8px"><button class="smallbtn danger" id="clearAuc">🗑 ลบรายการที่ประมูลแล้วทั้งหมด (${fin.length})</button></div>`:'')+liveAucs().slice().reverse().map(a=>{const tp=topBid(a);return`<div class="item"><div class="row"><b>${safe(a.name)}</b>${stT[a.status]||''}</div><div class="muted">เริ่ม ${money(a.minBid)} CB · ${a.sealed?'ยื่นซอง':'ประมูลสด'} · ${a.bids.length} บิด${tp?` · สูงสุด ${money(tp.amount)} CB (${safe(tm(tp.team).name)})`:''}${a.status==='open'&&a.endsAt?` · ⏱ เหลือ <b class="cd2" data-end="${a.endsAt}">${leftSec(a)}</b> วินาที`:''}${a.status==='sold'?` · ผู้ชนะ ${safe(tm(a.winner).name)} ${money(a.price)} CB`:''}</div><div class="actions" style="margin-top:8px">${a.status==='open'?`<button class="smallbtn primary closeAuc" data-id="${a.id}">ปิดประมูลและตัดสิน</button><button class="smallbtn danger cancelAuc" data-id="${a.id}">ยกเลิก</button>`:`<button class="smallbtn danger delAuc" data-id="${a.id}">🗑 ลบ</button>`}</div></div>`}).join('')||'<p class="muted">ยังไม่มีรายการ</p>';
   document.querySelectorAll('.closeAuc').forEach(b=>b.onclick=()=>ask('ปิดประมูล','ระบบจะเลือกราคาสูงสุดที่ทีมมี CB พอจ่าย แล้วหัก CB อัตโนมัติ ดำเนินการต่อหรือไม่?',()=>closeAuction(b.dataset.id)));
-  document.querySelectorAll('.cancelAuc').forEach(b=>b.onclick=()=>ask('ยกเลิกประมูล','ปิดห้องโดยไม่มีผู้ชนะและไม่หัก CB',()=>{const a=db.auctions.find(x=>x.id===b.dataset.id);a.status='void';log(`ยกเลิกประมูล "${a.name}"`);save()}));
+  document.querySelectorAll('.cancelAuc').forEach(b=>b.onclick=()=>ask('ยกเลิกประมูล','ปิดห้องโดยไม่มีผู้ชนะและไม่หัก CB',()=>{const a=db.auctions.find(x=>x.id===b.dataset.id);a.status='void';a.cancelled=true;a.closedAt=Date.now();log(`ยกเลิกประมูล "${a.name}"`);save()}));
+  const noteDel='ลบเฉพาะรายการในห้องประมูล CB ที่หักจากผู้ชนะแล้วจะไม่ถูกคืน และธุรกรรมยังอยู่ในประวัติบัญชี';
+  document.querySelectorAll('.delAuc').forEach(b=>b.onclick=()=>ask('ลบรายการประมูล',noteDel,()=>{const a=db.auctions.find(x=>x.id===b.dataset.id);if(!a)return;a.deleted=true;log(`ลบรายการประมูล "${a.name}"`);save();notify('ลบรายการแล้ว')}));
+  const ca=$('clearAuc');if(ca)ca.onclick=()=>ask('ลบรายการที่ประมูลแล้วทั้งหมด',noteDel,()=>{liveAucs().filter(a=>a.status!=='open').forEach(a=>a.deleted=true);log('ลบรายการประมูลที่จบแล้วทั้งหมด');save();notify('ลบรายการที่ประมูลแล้วทั้งหมด')});
 
   if(document.activeElement!==$('exchangeRate'))$('exchangeRate').value=db.rate;
   if(document.activeElement!==$('webhookUrl'))$('webhookUrl').value=db.webhook||'';
@@ -772,9 +847,9 @@ $('xBtn').onclick=()=>{
   const rate=db.rate;
   ask('ยืนยันการแลก (ถาวร)',`แลก ${money(a)} CC เป็น ${money(a*rate)} CB ให้ ${tm(team).name}\n\n⚠️ แลกแล้วมีผลทันที แลกกลับเป็น CC ไม่ได้ และกลับรายการไม่ได้ ยืนยันหรือไม่?`,()=>{
     if(a>bal(team))return notify('CC ไม่เพียงพอ');
-    addTx({team,kind:'exchange',amount:-a,cbDelta:a*rate,description:`แลก ${money(a)} CC เป็น ${money(a*rate)} CB (1 CC = ${rate} CB)`,final:true});
+    const xt=addTx({team,kind:'exchange',amount:-a,cbDelta:a*rate,description:`แลก ${money(a)} CC เป็น ${money(a*rate)} CB (1 CC = ${rate} CB)`,final:true});
     log(`${tm(team).name} แลก ${a} CC เป็น ${a*rate} CB`);persist();
-    $('xAmount').value='';updateX();burst(60);notify(`แลกสำเร็จ 💱 ได้ ${money(a*rate)} CB แล้ว`,4500);
+    $('xAmount').value='';updateX();burst(60);showSlip(xt);
   });
 };
 function renderGate(){
@@ -853,7 +928,8 @@ $('teamsForm').onsubmit=e=>{
 $('rollPins').onclick=()=>ask('รีเซ็ตรหัสผ่านทีม','รหัสผ่านของทุกทีมจะกลับเป็นค่าเริ่มต้นที่ตั้งไว้ ดำเนินการต่อหรือไม่?',()=>{db.teams.forEach((t,i)=>t.pass=DEFAULT_PASS[i]||('Team'+(i+1)+'Pass'));$('teamEditor').innerHTML='';log('รีเซ็ตรหัสผ่านทีมเป็นค่าเริ่มต้น');save();notify('รีเซ็ตรหัสผ่านทีมแล้ว')});
 $('activityForm').onsubmit=e=>{e.preventDefault();db.activities.push({id:uid(),name:$('actName').value.trim(),type:$('actType').value,amount:+$('actAmount').value,desc:$('actDesc').value.trim()});$('activityForm').reset();save();notify('เพิ่มกิจกรรมแล้ว')};
 $('perkForm').onsubmit=e=>{e.preventDefault();db.perks.push({id:uid(),ico:$('perkIco').value.trim()||'🎁',name:$('perkName').value.trim(),cost:+$('perkCost').value,desc:$('perkDesc').value.trim()});$('perkForm').reset();save();notify('เพิ่มอภิสิทธิ์แล้ว')};
-$('auctionForm').onsubmit=e=>{e.preventDefault();db.auctions.push({id:uid(),name:$('aucName').value.trim(),desc:$('aucDesc').value.trim(),minBid:+$('aucMin').value,sealed:$('aucSealed').value==='1',status:'open',bids:[],winner:null,price:0});log('เปิดประมูล: '+$('aucName').value.trim());$('auctionForm').reset();save();notify('เปิดห้องประมูลแล้ว')};
+$('auctionForm').onsubmit=e=>{e.preventDefault();const sec=Math.floor(+$('aucTime').value||0);if(sec<0)return notify('เวลาต้องไม่ติดลบ');db.auctions.push({id:uid(),name:$('aucName').value.trim(),desc:$('aucDesc').value.trim(),minBid:+$('aucMin').value,sealed:$('aucSealed').value==='1',status:'open',bids:[],winner:null,price:0,duration:sec,endsAt:sec?Date.now()+sec*1000:0});log('เปิดประมูล: '+$('aucName').value.trim()+(sec?` (จำกัดเวลา ${sec} วินาที)`:''));$('auctionForm').reset();save();notify('เปิดห้องประมูลแล้ว')};
+document.querySelectorAll('[data-sec]').forEach(b=>b.onclick=()=>$('aucTime').value=b.dataset.sec);
 $('settingsForm').onsubmit=async e=>{
   e.preventDefault();db.rate=Math.max(1,+$('exchangeRate').value||10);db.announcement=$('announcement').value.trim();db.webhook=$('webhookUrl').value.trim();
   const np=$('newPassword').value;
@@ -918,7 +994,10 @@ function mergeForCloud(remote,mine,isAdm){
   const ra=remote.auctions||[],ma=mine.auctions||[],am=new Map(ma.map(a=>[a.id,a])),ram=new Map(ra.map(a=>[a.id,a]));
   const bk=b=>b.team+'|'+b.amount+'|'+b.time;
   const mergeBids=(x,y)=>{const seen=new Set(),o=[];[...x,...y].forEach(b=>{if(!seen.has(bk(b))){seen.add(bk(b));o.push(b)}});return o.sort((p,q)=>new Date(p.time)-new Date(q.time))};
-  out.auctions=ra.map(r=>{const m=am.get(r.id),base=isAdm&&m?{...m}:{...r};base.bids=mergeBids(r.bids||[],m?m.bids||[]:[]);return base}).concat(ma.filter(a=>!ram.has(a.id)));
+  out.auctions=ra.map(r=>{const m=am.get(r.id);let base=isAdm&&m?{...m}:{...r};
+    if(m){const pick=q=>Object.assign(base,{status:q.status,winner:q.winner,price:q.price,closedAt:q.closedAt,autoClosed:q.autoClosed,cancelled:q.cancelled,deleted:q.deleted||base.deleted});
+      if(r.status!=='open'&&base.status==='open')pick(r);else if(!isAdm&&r.status==='open'&&m.status!=='open'&&m.autoClosed)pick(m)}
+    base.bids=mergeBids(r.bids||[],m?m.bids||[]:[]);return base}).concat(ma.filter(a=>!ram.has(a.id)));
   const seen=new Set(),au=[];[...(remote.audit||[]),...(mine.audit||[])].forEach(a=>{const k=a.time+a.text;if(!seen.has(k)){seen.add(k);au.push(a)}});
   out.audit=au.sort((a,b)=>new Date(a.time)-new Date(b.time)).slice(-500);
   return out;
